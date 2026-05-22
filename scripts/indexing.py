@@ -16,7 +16,7 @@ schema_builder.add_integer_field("district_key", stored=True, fast=True)
 schema = schema_builder.build()
 
 # 2) Index-Verzeichnis erstellen und Writer initialisieren.
-index_path = "districts"  # Relativer Pfad für das Index-Verzeichnis
+index_path = "../districts"  # Relativer Pfad für das Index-Verzeichnis
 if not os.path.exists(index_path):
     os.makedirs(index_path)
     print(f"Der {index_path}-Ordner wurde angelegt.")
