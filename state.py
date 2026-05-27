@@ -1,5 +1,7 @@
 import streamlit as st
 
+from resources import load_metadata_prompt
+
 
 def set_step(step):
     st.session_state.step = step
@@ -14,6 +16,7 @@ def step2_complete():
 
 
 def init_state():
+    metadata_prompt = load_metadata_prompt()
     defaults = {
         "step": 1,
 
@@ -52,14 +55,14 @@ def init_state():
 
         "dataset": None,
 
-        "temperature": 0.4,
+        "temperature": 0.0,
         "selected_llm": "GPT-5-mini",
 
-        "_temperature": 0.4,
+        "_temperature": 0.0,
         "_selected_llm": "GPT-5-mini",
-        "_prompt_template": "",
+        "_prompt_template": metadata_prompt,
 
-        "prompt_template": "",
+        "prompt_template": metadata_prompt,
 
         "export_zip": None,
     }

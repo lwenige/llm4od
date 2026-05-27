@@ -1,0 +1,11 @@
+[theme]
+base="light"
+primaryColor="#1e5fcfff"
+secondaryBackgroundColor="#edededff"
+textColor="#2b2a2aff"
+
+[theme.sidebar]
+backgroundColor="#edededff"
+
+[ui]
+hideTopBar = true

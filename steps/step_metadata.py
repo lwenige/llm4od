@@ -54,11 +54,10 @@ def generate_description():
 def render_metadata():
     #init_state()
     license_map = load_license_map()
-    metadata_prompt = load_metadata_prompt()
     st.header("Schritt 2: Metadaten & DCAT")
     with st.container(border=True):
-        col_large, col_small = st.columns([2.5,1.5])
-        st.session_state["_title"] = st.session_state.get("title", "")
+        col_large, col_small = st.columns([2.5, 1.5])
+
         with col_large:
             st.markdown(
                 "Datensatz-Titel "
@@ -66,7 +65,6 @@ def render_metadata():
                 unsafe_allow_html=True
             )
             sync_state_to_widget("_title", "title")
-            print(st.session_state["title"])
             st.text_input(
                 label="Datensatz-Titel",
                 label_visibility="collapsed",
@@ -82,7 +80,7 @@ def render_metadata():
                 "<span style='color:red'>*</span>",
                 unsafe_allow_html=True
             )
-
+            sync_state_to_widget("_publisher", "publisher")
             st.selectbox(
                 "Veröffentlichende Stelle",
                 label_visibility="collapsed",
@@ -90,18 +88,24 @@ def render_metadata():
                 index=None,
                 placeholder="Bitte auswählen...",
                 help="Publisher-Hilfe",
-                key="publisher",
+                on_change=sync_widget_to_state,
+                args=("_publisher", "publisher"),
+                key="_publisher",
             )
 
+            sync_state_to_widget("_license", "license")
             st.selectbox(
                 "Lizenz",
                 options=list(license_map.keys()),
                 index=None,
                 placeholder="Bitte auswählen...",
                 help="Lizenz-Hilfe",
-                key="license",
+                on_change=sync_widget_to_state,
+                args=("_license", "license"),
+                key="_license",
             )
 
+            sync_state_to_widget("_availability", "availability")
             st.selectbox(
                 "Verfügbarkeit",
                 options=list(availability_map.keys()),
@@ -111,82 +115,124 @@ def render_metadata():
                      "**experimental**: Daten versuchsweise verfügbar, sind aber noch etwa ein Jahr erreichbar  \n"
                      "**verfügbar**: Daten sind für einige Jahre verfügbar, mittelfristige Planung  \n"
                      "**stabil**: Daten werden langfristig erhalten bleiben.",
-                key="availability",
+                on_change=sync_widget_to_state,
+                args=("_availability", "availability"),
+                key="_availability",
             )
 
             with st.container(border=True):
                 st.write("Zeitliche Abdeckung")
-                st.date_input("Zeitraum von", value=None,key="time_from")
-                st.date_input("Zeitraum bis", value=None,key="time_till")
+
+                sync_state_to_widget("_time_from", "time_from")
+                st.date_input(
+                    "Zeitraum von",
+                    value=None,
+                    on_change=sync_widget_to_state,
+                    args=("_time_from", "time_from"),
+                    key="_time_from"
+                )
+
+                sync_state_to_widget("_time_till", "time_till")
+                st.date_input(
+                    "Zeitraum bis",
+                    value=None,
+                    on_change=sync_widget_to_state,
+                    args=("_time_till", "time_till"),
+                    key="_time_till"
+                )
 
             with st.container(border=True):
-                    st.write("Räumliche Abdeckung")
-                    for i in range(len(st.session_state["places"])):
-                        col_place, col_remove = st.columns([5, 1])
+                st.write("Räumliche Abdeckung")
 
-                        with col_place:
-                            selected_place = st_searchbox(
-                                load_places_from_rdf,
-                                placeholder="Nach Ort suchen...",
-                                label=f"Gebiet {i + 1}",
-                                clear_on_submit=False,
-                                key=f"place_{i}",
+                for i in range(len(st.session_state["places"])):
+                    col_place, col_remove = st.columns([5, 1])
+
+                    with col_place:
+                        stored_place = st.session_state["places"][i]
+                        selected_place = st_searchbox(
+                            load_places_from_rdf,
+                            placeholder="Nach Ort suchen...",
+                            label=f"Gebiet {i + 1}",
+                            clear_on_submit=False,
+                            default=stored_place,
+                            default_searchterm=stored_place or "",
+                            default_options=[stored_place] if stored_place else [],
+                            edit_after_submit="option",
+                            key=f"place_{i}",
+                        )
+
+                        if selected_place:
+                            st.session_state["places"][i] = selected_place
+                            st.session_state["place_keys"][i] = (
+                                    st.session_state["district_lookup"].get(selected_place)
+                                    or st.session_state["place_keys"][i]
                             )
 
-                            st.session_state["places"][i] = selected_place
+                    with col_remove:
+                        st.markdown(" ")
+                        st.markdown(" ")
 
-                            if selected_place:
-                                st.session_state["place_keys"][i] = (
-                                    st.session_state["district_lookup"].get(selected_place)
-                                )
+                        if len(st.session_state["places"]) > 1:
+                            if st.button(
+                                    "Entfernen",
+                                    key=f"remove_place_{i}",
+                                    use_container_width=True
+                            ):
+                                st.session_state["places"].pop(i)
+                                st.session_state["place_keys"].pop(i)
 
-                        with col_remove:
-                            st.markdown(" ")
-                            st.markdown(" ")
+                                # alle Searchbox-Widget-Keys löschen, damit Indizes sauber neu aufgebaut werden
+                                for key in list(st.session_state.keys()):
+                                    if key.startswith("place_"):
+                                        del st.session_state[key]
 
-                            if len(st.session_state["places"]) > 1:
-                                if st.button(
-                                        "Entfernen",
-                                        key=f"remove_place_{i}",
-                                        use_container_width=True
-                                ):
-                                    st.session_state["places"].pop(i)
-                                    st.session_state["place_keys"].pop(i)
-                                    st.rerun()
+                                st.rerun()
 
-                    if st.button("+ Ort hinzufügen"):
-                        st.session_state["places"].append(None)
-                        st.session_state["place_keys"].append(None)
-                        st.rerun()
+                if st.button("+ Ort hinzufügen"):
+                    st.session_state["places"].append(None)
+                    st.session_state["place_keys"].append(None)
+                    st.rerun()
 
         with col_small:
-                with st.expander("KI-Konfiguration"):
-                    st.selectbox(
-                        "KI-Modelle",
-                        options=list(llm_map.keys()),
-                        help="LLM-Hilfe",
-                        key="selected_llm",
-                    )
+            with st.expander("KI-Konfiguration"):
+                sync_state_to_widget("_selected_llm", "selected_llm")
+                st.selectbox(
+                    "KI-Modelle",
+                    options=list(llm_map.keys()),
+                    help="LLM-Hilfe",
+                    on_change=sync_widget_to_state,
+                    args=("_selected_llm", "selected_llm"),
+                    key="_selected_llm",
+                )
 
-                    st.text_area(
-                        "Die folgende Nachricht wird an die KI übergeben:",
-                        value=metadata_prompt,
-                        height=570,
-                        help="Vorgaben für die Metadatengenerierung.",
-                        key="prompt_template",
-                    )
+                sync_state_to_widget("_prompt_template", "prompt_template")
+                st.text_area(
+                    "Die folgende Nachricht wird an die KI übergeben:",
+                    height=500,
+                    help="Vorgaben für die Metadatengenerierung.",
+                    on_change=sync_widget_to_state,
+                    #value=st.session_state["_prompt_template"],
+                    args=("_prompt_template", "prompt_template"),
+                    key="_prompt_template"
+                )
 
-                    st.slider(
-                        "Temperatur",
-                        0.0,
-                        2.0,
-                        0.0,
-                        0.1,
-                        help="Steuert die Kreativität der KI.",
-                        key="temperature",
-                    )
+                sync_state_to_widget("_temperature", "temperature")
+                st.slider(
+                    "Temperatur",
+                    0.0,
+                    2.0,
+                    #value=st.session_state["_temperature"],
+                    step=0.1,
+                    help="Steuert die Kreativität der KI.",
+                    on_change=sync_widget_to_state,
+                    args=("_temperature", "temperature"),
+                    key="_temperature",
+                )
 
-    step2_missing = step2_incomplete(st.session_state["title"], st.session_state["publisher"])
+    step2_missing = step2_incomplete(
+        st.session_state["title"],
+        st.session_state["publisher"]
+    )
 
     if len(step2_missing) > 0:
         st.warning(

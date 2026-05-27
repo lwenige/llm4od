@@ -12,16 +12,22 @@ def render_description():
     #init_state()
     license_map = load_license_map()
     st.header("Schritt 3: Beschreibungs-Erstellung")
-
+    st.markdown(
+        "Datensatz-Beschreibung "
+        "<span style='color:red'>*</span>",
+        unsafe_allow_html=True
+    )
     st.text_area(
-        "Beschreibung (dct:description)",
+        "Beschreibung",
+        label_visibility="collapsed",
         value=st.session_state.get("generated_description", ""),
         height=180,
         key="description"
     )
 
+    st.markdown("Schlagwörter")
     st_tags(
-        label="Keywords (dcat:keyword)",
+        label="",
         text="Keyword eingeben und Enter drücken",
         value=st.session_state.get("generated_keywords", []),
         key="keywords_generated"
@@ -40,11 +46,13 @@ def render_description():
         if uri in theme_uri_to_label
     ]
 
+    st.markdown("Themen")
     selected_themes = st.multiselect(
-        "Themen (dcat:theme)",
+        label="Themen",
+        label_visibility="collapsed",
         options=list(theme_map.keys()),
         default=valid_theme_labels,
-        help="Mehrere Themen möglich."
+        help="Themen aus der Liste der \"EU Vocabulary DCAT Themes\". Mehrere Themen sind möglich."
     )
 
     st.session_state["selected_themes"] = selected_themes
