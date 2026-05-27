@@ -394,6 +394,8 @@ elif st.session_state.step == 2:
                     col_place, col_remove = st.columns([5, 1])
 
                     with col_place:
+                        if "district_index" not in st.session_state:
+                            st.session_state["district_index"] = build_district_index()
                         selected_place = st_searchbox(
                             load_places_from_rdf,
                             placeholder="Nach Ort suchen...",

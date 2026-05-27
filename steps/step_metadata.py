@@ -143,6 +143,8 @@ def render_metadata():
 
             with st.container(border=True):
                 st.write("Räumliche Abdeckung")
+                if "district_index" not in st.session_state:
+                    st.session_state["district_index"] = create_district_index()
 
                 for i in range(len(st.session_state["places"])):
                     col_place, col_remove = st.columns([5, 1])
