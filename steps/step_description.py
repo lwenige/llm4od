@@ -31,7 +31,10 @@ def init_description_state():
     #     st.session_state.get("generated_description", "")
     # )
     #st.session_state["themes"] = generated_theme_labels
-    st.session_state.setdefault("themes", generated_theme_labels)
+    #st.session_state.setdefault("themes", generated_theme_labels)
+    if not st.session_state.get("themes_initialized", False):
+        st.session_state["themes"] = generated_theme_labels
+        st.session_state["themes_initialized"] = True
     # st.session_state.setdefault(
     #     "theme",
     #     generated_theme_labels
