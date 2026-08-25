@@ -1,6 +1,10 @@
+from pathlib import Path
+
 from rdflib import Graph
 from rdflib.namespace import RDF, SKOS
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+SYSTEM_MESSAGES = BASE_DIR / "system_messages"
 
 def load_license_map():
     g = Graph()
@@ -18,18 +22,9 @@ def load_license_map():
 
 
 def load_editor_prompt():
-    with open(
-        "system_messages/text_prompt.txt",
-        "r",
-        encoding="utf-8"
-    ) as f:
-        return f.read()
+    return (SYSTEM_MESSAGES / "text_prompt.txt").read_text(encoding="utf-8")
 
 
 def load_metadata_prompt():
-    with open(
-        "system_messages/metadata_prompt.txt",
-        "r",
-        encoding="utf-8"
-    ) as f:
-        return f.read()
+    return (SYSTEM_MESSAGES / "metadata_prompt.txt").read_text(encoding="utf-8")
+

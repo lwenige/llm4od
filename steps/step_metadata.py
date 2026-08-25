@@ -1,14 +1,9 @@
 import streamlit as st
 from streamlit_searchbox import st_searchbox
-from config import city_map, availability_map, llm_map, theme_map
-from models.dataset import Dataset
+from config import city_map, availability_map
 from services.search import create_district_index, search_places
-from resources import load_license_map, load_metadata_prompt
-from services.metadata_prompt import build_metadata_prompt
-from services.openrouter_client import generate_metadata_with_openrouter
-from services.validate import step2_incomplete
-from state import init_state, sync_widget_to_state, sync_state_to_widget
-
+from services.validate import step1_incomplete
+from state import sync_widget_to_state, sync_state_to_widget, set_step, sync_widget_to_state_and_invalidate
 if "district_index" not in st.session_state:
     st.session_state["district_index"] = create_district_index()
 
@@ -17,43 +12,8 @@ def load_places_from_rdf(query: str):
     st.session_state["district_lookup"].update(place_lookup)
     return results
 
-def generate_description():
-    dataset = Dataset({
-        "title": st.session_state["title"],
-        "publisher": city_map[st.session_state["publisher"]],
-    })
-
-    for place_key in st.session_state["place_keys"]:
-        if place_key is not None:
-            dataset.add_place(place_key)
-
-    st.session_state["dataset"] = dataset
-    sample_data = st.session_state.df.head(10).to_markdown(index=False)
-
-    final_prompt = build_metadata_prompt(
-        editable_prompt=st.session_state["prompt_template"],
-        title=st.session_state["title"],
-        publisher=st.session_state["publisher"],
-        sample_data=sample_data,
-        themes=theme_map
-    )
-
-    result = generate_metadata_with_openrouter(
-        prompt=final_prompt,
-        model=llm_map[st.session_state["selected_llm"]],
-        api_key=st.secrets["OPENROUTER_API_KEY"],
-        temperature=st.session_state["temperature"],
-    )
-
-    st.session_state["generated_description"] = result.get("description", "")
-    st.session_state["generated_themes"] = result.get("themes", [])
-    st.session_state["generated_keywords"] = result.get("keywords", [])
-    print(result)
-    st.session_state.step = 3
-
 def render_metadata():
-    #init_state()
-    license_map = load_license_map()
+
     st.header("Schritt 2: Metadaten & DCAT")
     with st.container(border=True):
         col_large, col_small = st.columns([2.5, 1.5])
@@ -70,7 +30,7 @@ def render_metadata():
                 label_visibility="collapsed",
                 placeholder="z.B. Unternehmenszahlen in Halle (Saale)",
                 help="Titel-Hilfe",
-                on_change=sync_widget_to_state,
+                on_change=sync_widget_to_state_and_invalidate,
                 args=("_title", "title"),
                 key="_title"
             )
@@ -88,21 +48,9 @@ def render_metadata():
                 index=None,
                 placeholder="Bitte auswählen...",
                 help="Publisher-Hilfe",
-                on_change=sync_widget_to_state,
+                on_change=sync_widget_to_state_and_invalidate,
                 args=("_publisher", "publisher"),
                 key="_publisher",
-            )
-
-            sync_state_to_widget("_license", "license")
-            st.selectbox(
-                "Lizenz",
-                options=list(license_map.keys()),
-                index=None,
-                placeholder="Bitte auswählen...",
-                help="Lizenz-Hilfe",
-                on_change=sync_widget_to_state,
-                args=("_license", "license"),
-                key="_license",
             )
 
             sync_state_to_widget("_availability", "availability")
@@ -196,57 +144,66 @@ def render_metadata():
                     st.rerun()
 
         with col_small:
-            with st.expander("KI-Konfiguration"):
-                sync_state_to_widget("_selected_llm", "selected_llm")
-                st.selectbox(
-                    "KI-Modelle",
-                    options=list(llm_map.keys()),
-                    help="LLM-Hilfe",
-                    on_change=sync_widget_to_state,
-                    args=("_selected_llm", "selected_llm"),
-                    key="_selected_llm",
-                )
+            st.write("Test")
+            # with st.expander("KI-Konfiguration"):
+            #     sync_state_to_widget("_selected_llm", "selected_llm")
+            #     st.selectbox(
+            #         "KI-Modelle",
+            #         options=list(llm_map.keys()),
+            #         help="LLM-Hilfe",
+            #         on_change=sync_widget_to_state,
+            #         args=("_selected_llm", "selected_llm"),
+            #         key="_selected_llm",
+            #     )
+            #
+            #     sync_state_to_widget("_prompt_template", "prompt_template")
+            #     st.text_area(
+            #         "Die folgende Nachricht wird an die KI übergeben:",
+            #         height=500,
+            #         help="Vorgaben für die Metadatengenerierung.",
+            #         on_change=sync_widget_to_state,
+            #         #value=st.session_state["_prompt_template"],
+            #         args=("_prompt_template", "prompt_template"),
+            #         key="_prompt_template"
+            #     )
+            #
+            #     sync_state_to_widget("_temperature", "temperature")
+            #     st.slider(
+            #         "Temperatur",
+            #         0.0,
+            #         2.0,
+            #         #value=st.session_state["_temperature"],
+            #         step=0.1,
+            #         help="Steuert die Kreativität der KI.",
+            #         on_change=sync_widget_to_state,
+            #         args=("_temperature", "temperature"),
+            #         key="_temperature",
+            #     )
 
-                sync_state_to_widget("_prompt_template", "prompt_template")
-                st.text_area(
-                    "Die folgende Nachricht wird an die KI übergeben:",
-                    height=500,
-                    help="Vorgaben für die Metadatengenerierung.",
-                    on_change=sync_widget_to_state,
-                    #value=st.session_state["_prompt_template"],
-                    args=("_prompt_template", "prompt_template"),
-                    key="_prompt_template"
-                )
-
-                sync_state_to_widget("_temperature", "temperature")
-                st.slider(
-                    "Temperatur",
-                    0.0,
-                    2.0,
-                    #value=st.session_state["_temperature"],
-                    step=0.1,
-                    help="Steuert die Kreativität der KI.",
-                    on_change=sync_widget_to_state,
-                    args=("_temperature", "temperature"),
-                    key="_temperature",
-                )
-
-    step2_missing = step2_incomplete(
+    step1_missing = step1_incomplete(
         st.session_state["title"],
         st.session_state["publisher"]
     )
 
-    if len(step2_missing) > 0:
+    if len(step1_missing) > 0:
         st.warning(
             "Folgende Pflichtfelder fehlen:\n\n- "
-            + "\n- ".join(step2_missing)
+            + "\n- ".join(step1_missing)
         )
 
+    # st.button(
+    #     "Weiter zur Beschreibung",
+    #     on_click=generate_description,
+    #     type="secondary",
+    #     disabled=len(step2_missing) > 0
+    # )
+
     st.button(
-        "Weiter zur Beschreibung",
-        on_click=generate_description,
+        "Weiter zur KI-Konfiguration",
+        on_click=set_step,
+        args=(2,),
         type="secondary",
-        disabled=len(step2_missing) > 0
+        disabled=len(step1_missing) > 0,
     )
 
     st.button(
