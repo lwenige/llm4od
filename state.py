@@ -38,14 +38,28 @@ def create_dataset():
             config.availability_map[availability]
         )
 
-    time_from = st.session_state.get("time_from")
-    time_till = st.session_state.get("time_till")
+    # time_from = st.session_state.get("time_from")
+    # time_till = st.session_state.get("time_till")
+    #
+    # if time_from or time_till:
+    #     dataset.add_temporal_coverage(
+    #         start_date=time_from,
+    #         end_date=time_till,
+    #     )
+    for period in st.session_state.get("time_periods", []):
+        time_from = period.get("from")
+        time_till = period.get("till")
 
-    if time_from or time_till:
-        dataset.add_temporal_coverage(
-            start_date=time_from,
-            end_date=time_till,
-        )
+        if time_from or time_till:
+            dataset.add_temporal_coverage(
+                start_date=time_from,
+                end_date=time_till,
+            )
+
+    bounding_box = st.session_state.get("bounding_box")
+
+    if bounding_box:
+        dataset.add_bounding_box(bounding_box)
 
     st.session_state["dataset"] = dataset
 
@@ -112,8 +126,19 @@ def init_state():
         "publisher": None,
         "license": None,
         "availability": None,
-        "time_from": None,
-        "time_till": None,
+        #"time_from": None,
+        #"time_till": None,
+        "time_periods": [
+            {
+                "from": None,
+                "till": None,
+            }
+        ],
+        "bounding_box": None,
+        # widget values
+        "_availability": None,
+        "_bounding_box": None,
+
         "dist_title": None,
 
         # widget values
@@ -121,8 +146,8 @@ def init_state():
         "_publisher": None,
         "_license": None,
         "_availability": None,
-        "_time_from": None,
-        "_time_till": None,
+        #"_time_from": None,
+        #"_time_till": None,
         "_dist_title": None,
 
         "places": [None],
@@ -185,4 +210,43 @@ def sync_widget_to_state_and_invalidate(
     state_key: str,
 ) -> None:
     sync_widget_to_state(widget_key, state_key)
+    invalidate_dependent_steps()
+
+def sync_time_widget_to_state(
+    widget_key: str,
+    index: int,
+    field: str,
+):
+    st.session_state["time_periods"][index][field] = (
+        st.session_state[widget_key]
+    )
+
+
+def sync_time_state_to_widget(
+    widget_key: str,
+    index: int,
+    field: str,
+):
+    st.session_state[widget_key] = (
+        st.session_state["time_periods"][index][field]
+    )
+
+def sync_time_widget_to_state_and_invalidate(
+    widget_key: str,
+    index: int,
+    field: str,
+):
+    sync_time_widget_to_state(
+        widget_key,
+        index,
+        field,
+    )
+
+    invalidate_dependent_steps()
+
+def sync_bounding_box_to_state():
+    st.session_state["bounding_box"] = (
+        st.session_state["_bounding_box"]
+    )
+
     invalidate_dependent_steps()

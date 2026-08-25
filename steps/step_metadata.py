@@ -3,7 +3,21 @@ from streamlit_searchbox import st_searchbox
 from config import city_map, availability_map
 from services.search import create_district_index, search_places
 from services.validate import step1_incomplete
-from state import sync_widget_to_state, sync_state_to_widget, set_step, sync_widget_to_state_and_invalidate
+#from state import sync_widget_to_state, sync_state_to_widget, set_step, sync_widget_to_state_and_invalidate
+from state import (
+    sync_widget_to_state,
+    sync_state_to_widget,
+    set_step,
+    sync_widget_to_state_and_invalidate,
+    sync_time_widget_to_state_and_invalidate,
+    sync_time_state_to_widget,
+    invalidate_dependent_steps, sync_bounding_box_to_state,
+)
+import folium
+
+from folium.plugins import Draw
+from streamlit_folium import st_folium
+
 if "district_index" not in st.session_state:
     st.session_state["district_index"] = create_district_index()
 
@@ -14,15 +28,18 @@ def load_places_from_rdf(query: str):
 
 def render_metadata():
 
-    st.header("Schritt 2: Metadaten & DCAT")
+    st.header("Schritt 2: Metadaten zur DCAT-Erstellung")
+    st.write("Bitte füllen Sie alle relevanten Metadenfelder aus. "
+             "Pflichtfelder sind mit einem * markiert.")
     with st.container(border=True):
         col_large, col_small = st.columns([2.5, 1.5])
 
         with col_large:
             st.markdown(
-                "Datensatz-Titel "
+                "**Datensatz-Titel**"
                 "<span style='color:red'>*</span>",
-                unsafe_allow_html=True
+                unsafe_allow_html=True,
+                help="DCAT-Feld Datensatz-Titel (dct:title), siehe https://www.dcat-ap.de/def/dcatde/2.0/spec/#datensatz-titel"
             )
             sync_state_to_widget("_title", "title")
             st.text_input(
@@ -36,9 +53,14 @@ def render_metadata():
             )
 
             st.markdown(
-                "Veröffentlichende Stelle"
+                "**Veröffentlichende Stelle**"
                 "<span style='color:red'>*</span>",
-                unsafe_allow_html=True
+                unsafe_allow_html=True,
+                help="DCAT-Feld Datensatz-Herausgeber (dct:publischer), siehe DCAT-AP.de https://www.dcat-ap.de/def/dcatde/2.0/spec/#datensatz-titel"
+                     "\n\n"
+                     "*Hinweis: Die vorliegende Liste enthält zu Demonstrationszwecken beispielhaft größere Städte"
+                     "in Deutschland als Herausgeber. In einem Produktivsystem wären die für die Fachstelle relevanten"
+                     "herausgebenden Körperschaften hinterlegt.*"
             )
             sync_state_to_widget("_publisher", "publisher")
             st.selectbox(
@@ -54,43 +76,142 @@ def render_metadata():
             )
 
             sync_state_to_widget("_availability", "availability")
+
+            st.markdown(
+                "**Verfügbarkeit**",
+                unsafe_allow_html=True,
+                help="DCAT-Feld Datensatz-Verfügbarkeit (dcatap:availability), siehe DCAT-AP.de https://www.dcat-ap.de/def/dcatde/2.0/spec/#datensatz-verfugbarkeit"
+                     "\n\n"
+                     "DCAT-AP.de macht Vorgaben zu den möglichen Werten. Wählen Sie einen aus."
+                     "\n\n"
+                     "**temporär**: Daten können jederzeit verschwinden  \n"
+                     "**experimental**: Daten versuchsweise verfügbar, sind aber noch etwa ein Jahr erreichbar  \n"
+                     "**verfügbar**: Daten sind für einige Jahre verfügbar, mittelfristige Planung  \n"
+                     "**stabil**: Daten werden langfristig erhalten bleiben."
+            )
+
             st.selectbox(
-                "Verfügbarkeit",
+                "**Verfügbarkeit**",
+                label_visibility="collapsed",
                 options=list(availability_map.keys()),
                 index=None,
                 placeholder="Bitte auswählen...",
-                help="**temporär**: Daten können jederzeit verschwinden  \n"
-                     "**experimental**: Daten versuchsweise verfügbar, sind aber noch etwa ein Jahr erreichbar  \n"
-                     "**verfügbar**: Daten sind für einige Jahre verfügbar, mittelfristige Planung  \n"
-                     "**stabil**: Daten werden langfristig erhalten bleiben.",
                 on_change=sync_widget_to_state,
                 args=("_availability", "availability"),
                 key="_availability",
             )
 
-            with st.container(border=True):
-                st.write("Zeitliche Abdeckung")
+            # with st.container(border=True):
+            #     st.write("Zeitliche Abdeckung")
+            #
+            #     sync_state_to_widget("_time_from", "time_from")
+            #     st.date_input(
+            #         "Zeitraum von",
+            #         value=None,
+            #         on_change=sync_widget_to_state,
+            #         args=("_time_from", "time_from"),
+            #         key="_time_from"
+            #     )
+            #
+            #     sync_state_to_widget("_time_till", "time_till")
+            #     st.date_input(
+            #         "Zeitraum bis",
+            #         value=None,
+            #         on_change=sync_widget_to_state,
+            #         args=("_time_till", "time_till"),
+            #         key="_time_till"
+            #     )
 
-                sync_state_to_widget("_time_from", "time_from")
-                st.date_input(
-                    "Zeitraum von",
-                    value=None,
-                    on_change=sync_widget_to_state,
-                    args=("_time_from", "time_from"),
-                    key="_time_from"
+            with st.container(border=True):
+
+                st.markdown(
+                    "**Zeitliche Abdeckung**",
+                    help="Zeitraum, den die Daten abdecken (dct:temporal), siehe DCAT-AP.de https://www.dcat-ap.de/def/dcatde/2.0/spec/#klasse-zeitraum"
                 )
 
-                sync_state_to_widget("_time_till", "time_till")
-                st.date_input(
-                    "Zeitraum bis",
-                    value=None,
-                    on_change=sync_widget_to_state,
-                    args=("_time_till", "time_till"),
-                    key="_time_till"
-                )
+                for i in range(len(st.session_state["time_periods"])):
+                    col_from, col_till, col_remove = st.columns([2, 2, 1])
+
+                    from_key = f"_time_from_{i}"
+                    till_key = f"_time_till_{i}"
+
+                    # Persistenten State in Widget-State synchronisieren
+                    sync_time_state_to_widget(
+                        from_key,
+                        i,
+                        "from",
+                    )
+
+                    sync_time_state_to_widget(
+                        till_key,
+                        i,
+                        "till",
+                    )
+
+                    with col_from:
+                        st.date_input(
+                            "Zeitraum von",
+                            value=None,
+                            key=from_key,
+                            on_change=sync_time_widget_to_state_and_invalidate,
+                            args=(from_key, i, "from"),
+                        )
+
+                    with col_till:
+                        st.date_input(
+                            "Zeitraum bis",
+                            value=None,
+                            key=till_key,
+                            on_change=sync_time_widget_to_state_and_invalidate,
+                            args=(till_key, i, "till"),
+                        )
+
+                    with col_remove:
+                        st.markdown(" ")
+                        st.markdown(" ")
+
+                        if len(st.session_state["time_periods"]) > 1:
+                            if st.button(
+                                    "Entfernen",
+                                    key=f"remove_time_period_{i}",
+                                    use_container_width=True,
+                            ):
+                                st.session_state["time_periods"].pop(i)
+
+                                # Alte Widget-Keys entfernen
+                                for key in list(st.session_state.keys()):
+                                    if (
+                                            key.startswith("_time_from_")
+                                            or key.startswith("_time_till_")
+                                    ):
+                                        del st.session_state[key]
+
+                                invalidate_dependent_steps()
+                                st.rerun()
+
+                if st.button(
+                        "+ Zeitraum hinzufügen",
+                        key="add_time_period",
+                ):
+                    st.session_state["time_periods"].append({
+                        "from": None,
+                        "till": None,
+                    })
+
+                    invalidate_dependent_steps()
+                    st.rerun()
 
             with st.container(border=True):
-                st.write("Räumliche Abdeckung")
+                st.markdown(
+                    "**Räumliche Abdeckung (AGS-Landkreise und kreisfreie Städte)**",
+                    help="Ein räumlicher Bereich oder ein Standort, den die Daten abdecken (dct:spatial), siehe DCAT-AP.de https://www.dcat-ap.de/def/dcatde/2.0/spec/#klasse-standort"
+                         "\n\n"
+                         "*Hinweis: Die vorliegende Liste enthält zu Demonstrationszwecken beispielhaft die Amtlichen Gemeindeschlüssel (AGS) der "
+                         "kreisfreien Städte und Landkreise. In einem Produktivsystem könnten AGS-Schlüssel gröberer oder "
+                         "feingranularer Verwaltungsebenen hinterlegt sein (siehe hier: https://www.dcat-ap.de/def/) bzw. Standort-Links (URIs) aus weiteren Ortsdatenbanken"
+                         "(z.B. GeoNames)*"
+                )
+                st.markdown("*Tipp: Suchen Sie über das Eingabefeld*")
                 if "district_index" not in st.session_state:
                     st.session_state["district_index"] = create_district_index()
 
@@ -128,13 +249,19 @@ def render_metadata():
                                     key=f"remove_place_{i}",
                                     use_container_width=True
                             ):
+                                old_place_count = len(st.session_state["places"])
+
                                 st.session_state["places"].pop(i)
                                 st.session_state["place_keys"].pop(i)
 
-                                # alle Searchbox-Widget-Keys löschen, damit Indizes sauber neu aufgebaut werden
-                                for key in list(st.session_state.keys()):
-                                    if key.startswith("place_"):
-                                        del st.session_state[key]
+                                # Nur die erzeugten Searchbox-Widget-Keys löschen.
+                                # startswith("place_") würde auch den persistenten
+                                # State "place_keys" löschen.
+                                for widget_index in range(old_place_count):
+                                    st.session_state.pop(
+                                        f"place_{widget_index}",
+                                        None,
+                                    )
 
                                 st.rerun()
 
@@ -144,7 +271,148 @@ def render_metadata():
                     st.rerun()
 
         with col_small:
-            st.write("Test")
+            st.markdown(
+                "**Räumliche Abdeckung (Bounding Box)**",
+                help="Ein räumlicher Bereich oder ein Standort, den die Daten abdecken (dct:spatial), siehe DCAT-AP.de https://www.dcat-ap.de/def/dcatde/2.0/spec/#klasse-standort"
+                     "\n\n"
+                     "*Hinweis: In der vorliegenden Karte können Sie aktuell nur einen geographischen "
+                     "Bereich selber auswählen. In einem Produktivsystem sollte eine Mehrfach-Kartenauswahl"
+                     "möglich sein, um dem DCAT-AP.de-Standard vollumfänglich zu entsprechen.*"
+            )
+
+            st.markdown(
+                "\n\n"
+                "Bitte wählen Sie bei Bedarf einen geographischen Bereich aus der Karte aus, auf den "
+                "sich Ihre Daten beziehen. Selektieren Sie dafür das Rechteck (◼️) auf der Karte und zeichnen Sie den "
+                "betroffenen Bereich ein.",
+            )
+            # -----------------------------------
+            # Persistent State -> Widget State
+            # -----------------------------------
+
+            sync_state_to_widget(
+                "_bounding_box",
+                "bounding_box",
+            )
+
+            bbox = st.session_state["_bounding_box"]
+
+            # -----------------------------------
+            # Karte
+            # -----------------------------------
+
+            m = folium.Map(
+                location=[51.34, 12.37],
+                zoom_start=8,
+            )
+
+            # Bereits gespeicherte Bounding Box anzeigen
+            if bbox:
+                bounds = [
+                    [bbox["south"], bbox["west"]],
+                    [bbox["north"], bbox["east"]],
+                ]
+
+                folium.Rectangle(
+                    bounds=bounds,
+                    weight=2,
+                    fill=True,
+                    fill_opacity=0.15,
+                ).add_to(m)
+
+                m.fit_bounds(bounds)
+
+            # Nur Rechtecke erlauben
+            Draw(
+                export=False,
+                draw_options={
+                    "polyline": False,
+                    "polygon": False,
+                    "circle": False,
+                    "marker": False,
+                    "circlemarker": False,
+                    "rectangle": True,
+                },
+                edit_options={
+                    "edit": False,
+                    "remove": False,
+                },
+            ).add_to(m)
+
+            # -----------------------------------
+            # Streamlit-Komponente
+            # -----------------------------------
+
+            map_data = st_folium(
+                m,
+                width=None,
+                height=450,
+                key="spatial_bbox_map",
+            )
+
+            # -----------------------------------
+            # Neue Bounding Box auslesen
+            # -----------------------------------
+
+            drawing = map_data.get("last_active_drawing")
+
+            if drawing and drawing.get("geometry"):
+                geometry = drawing["geometry"]
+
+                if geometry.get("type") == "Polygon":
+                    coordinates = geometry["coordinates"][0]
+
+                    longitudes = [
+                        point[0]
+                        for point in coordinates
+                    ]
+
+                    latitudes = [
+                        point[1]
+                        for point in coordinates
+                    ]
+
+                    new_bbox = {
+                        "west": min(longitudes),
+                        "south": min(latitudes),
+                        "east": max(longitudes),
+                        "north": max(latitudes),
+                    }
+
+                    # Nur reagieren, wenn wirklich eine neue Box
+                    # gezeichnet wurde.
+                    if new_bbox != st.session_state["_bounding_box"]:
+                        # Component/Widget State setzen
+                        st.session_state["_bounding_box"] = new_bbox
+
+                        # Widget State -> persistent State
+                        sync_bounding_box_to_state()
+
+                        st.rerun()
+
+            # -----------------------------------
+            # Aktuellen persistenten State anzeigen
+            # -----------------------------------
+
+            bbox = st.session_state["bounding_box"]
+
+            if bbox:
+                st.caption(
+                    f'W: {bbox["west"]:.6f} | '
+                    f'S: {bbox["south"]:.6f} | '
+                    f'E: {bbox["east"]:.6f} | '
+                    f'N: {bbox["north"]:.6f}'
+                )
+
+                if st.button(
+                        "Bounding Box entfernen",
+                        key="remove_bounding_box",
+                ):
+                    st.session_state["_bounding_box"] = None
+
+                    sync_bounding_box_to_state()
+
+                    st.rerun()
             # with st.expander("KI-Konfiguration"):
             #     sync_state_to_widget("_selected_llm", "selected_llm")
             #     st.selectbox(
@@ -199,10 +467,10 @@ def render_metadata():
     # )
 
     st.button(
-        "Weiter zur KI-Konfiguration",
+        "Weiter zum Datenupload",
         on_click=set_step,
         args=(2,),
-        type="secondary",
+        type="primary",
         disabled=len(step1_missing) > 0,
     )
 
@@ -210,3 +478,4 @@ def render_metadata():
         "⬅ Zurück",
         on_click=lambda: st.session_state.update(step=1)
     )
+

@@ -1,5 +1,4 @@
 from streamlit_tags import st_tags
-
 from config import theme_map
 from services.validate import step3_incomplete
 from state import (
@@ -116,7 +115,7 @@ def render_description():
 
     if st.button(
         "Metadaten prüfen",
-        type="secondary",
+        type="primary",
         disabled=bool(step3_missing),
     ):
         st.session_state["step4_completed"] = True

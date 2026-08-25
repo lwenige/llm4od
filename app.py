@@ -49,7 +49,7 @@ st.sidebar.button(
 )
 
 st.sidebar.button(
-    "2 Upload & Datenqualität",
+    "2 Datenupload",
     on_click=set_step,
     args=(2,),
     disabled=not step1_complete(),

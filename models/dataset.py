@@ -19,6 +19,7 @@ DATA_THEME_SCHEME = URIRef("http://publications.europa.eu/resource/authority/dat
 LICENSE_SCHEME = URIRef("http://dcat-ap.de/def/licenses")
 VCARD = Namespace("http://www.w3.org/2006/vcard/ns#")
 CSV = URIRef("http://publications.europa.eu/resource/authority/file-type/CSV")
+GEO = Namespace("http://www.opengis.net/ont/geosparql#")
 
 
 class Dataset:
@@ -45,6 +46,7 @@ class Dataset:
         self.graph.bind("pg", POLITICAL_GEOCODING)
         self.graph.bind("district", DISTRICT_KEY)
         self.graph.bind("lang", LANGUAGE)
+        self.graph.bind("geo", GEO)
 
     def _create_base_dataset(self, meta: dict):
         self.graph.add((self.dataset, RDF.type, DCAT.Dataset))
@@ -119,6 +121,47 @@ class Dataset:
             DISTRICT_KEY[str(place_key)]
         ))
 
+    def add_bounding_box(self, bounding_box):
+            if not bounding_box:
+                return
+
+            west = bounding_box["west"]
+            south = bounding_box["south"]
+            east = bounding_box["east"]
+            north = bounding_box["north"]
+
+            location = BNode()
+
+            self.graph.add((
+                self.dataset,
+                DCTERMS.spatial,
+                location
+            ))
+
+            self.graph.add((
+                location,
+                RDF.type,
+                DCTERMS.Location
+            ))
+
+            bbox_wkt = (
+                f"POLYGON(("
+                f"{west} {south}, "
+                f"{west} {north}, "
+                f"{east} {north}, "
+                f"{east} {south}, "
+                f"{west} {south}"
+                f"))"
+            )
+
+            self.graph.add((
+                location,
+                DCAT.bbox,
+                Literal(
+                    bbox_wkt,
+                    datatype=GEO.wktLiteral
+                )
+            ))
         #self.graph.add((
         #    self.dataset,
         #    DCATDE.politicalGeocodingURI,

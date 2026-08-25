@@ -24,11 +24,18 @@ def render_upload():
     #         dataset.add_place(place_key)
     #
     # st.session_state["dataset"] = dataset
-    st.header("Schritt 1: Upload & Datentypen")
+    st.header("Schritt 2: Datenupload")
 
     sync_state_to_widget("_dist_title", "dist_title")
+
+    st.markdown(
+        "**Distributions-Titel**",
+        help="DCAT-Feld für den Titel der eigentlichen Datei (dct:title), siehe DCAT-AP.de https://www.dcat-ap.de/def/dcatde/2.0/spec/#distribution-titel"
+    )
+
     st.text_input(
         label="Daten-Titel",
+        label_visibility="collapsed",
         placeholder="z.B. Unternehmenszahlen in Halle (Saale) - CSV",
         help="Titel-Hilfe",
         on_change=sync_widget_to_state,
@@ -37,14 +44,17 @@ def render_upload():
     )
 
     st.markdown(
-        "Lizenz"
+        "**Lizenz**"
         "<span style='color:red'>*</span>",
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
+        help="DCAT-Feld zur Lizenzauswahl (dct:license), siehe DCAT-AP.de https://www.dcat-ap.de/def/dcatde/2.0/spec/#distribution-lizenz. Dies "
+             "sichert die rechtssichere Wiederverwendung der Daten. Die Liste der Lizenten kann auch "
+             "hier eingesehen werden: https://www.dcat-ap.de/def/licenses/"
     )
 
     sync_state_to_widget("_license", "license")
     st.selectbox(
-        label="Lizenz",
+        label="Distributions-Lizenz",
         label_visibility="collapsed",
         options=list(config.license_map.keys()),
         index=None,
@@ -54,8 +64,23 @@ def render_upload():
         args=("_license", "license"),
         key="_license",
     )
+    st.divider()
+    st.markdown(
+        "**Datenupload**"
+        "<span style='color:red'>*</span>",
+        unsafe_allow_html=True,
+        help="Hier können Sie Ihre Daten hochladen. Aktuell werden nur CSV-Dateien unterstützt. "
+             "Auch wenn in dieser Testversion ein Datenupload für inkonsistente bzw. fehlerhafte "
+             "CSV-Dateien ermöglicht werden soll, so kann es sein, dass der Upload nicht bei allen "
+             "Dateien gelingt. Die kann z.B. an mehrzeiligen Headern oder unbekannter Zeichenkodierung"
+             "liegen."
+             "\n\n"
+             "*Hinweis: Neben dem CSV-Upload sollte ein Open-Data-Metadateneditor auch den "
+             "Upload anderer Dateiformate (z.B. JSON, XML, HTML, RTF) sowie mehrerer Dateien pro Datensatz unterstützen. Da es sich bei dem "
+             "vorliegenden Demonstrator, um einen Forschungsprototypen handelt, ist diese Funktionalität"
+             "aktuell noch nicht implementiert.*"
+    )
 
-    st.write("Datenupload")
     up_file = st.file_uploader(" ", type=["csv"], accept_multiple_files=False)
     if st.button("↗ CSV hochladen", type="primary", use_container_width=False):
         try:
@@ -86,19 +111,17 @@ def render_upload():
             + "\n- ".join(step2_missing)
         )
 
-    st.button(
-        "Weiter zu Metadaten",
-        on_click=set_step,
-        #args=(2,),
-        args=(3,),
-        disabled=len(step2_missing) > 0,
-        type="secondary",
-    )
-
     if st.session_state.df is not None:
+        st.markdown("**Daten-Vorschau**")
         st.dataframe(st.session_state.df.head())
 
-        st.subheader("CSVW-Spaltenbeschreibung")
+        st.markdown("**Spaltenbeschreibungen**"
+                    "\n\n"
+                    "Hier können Sie optional Datentypen, textliche Beschreibungen oder "
+                    "weitere Bestimmungen (z.B. Pflichtfeld ja/nein, Regeln für Spaltenwerte festlegen. "
+                    "So können die Daten von anderen (z.B. Nutzer*innen aber auch KI-Agenten) einfacher"
+                    "verwendet werden. Ihre Angaben werden nach dem [CSV on the Web (CSVW)](https://csvw.org/) Standard gespeichert "
+                    "und zur Metadatenbeschreibung hinzugefügt.")
 
         for col in st.session_state.df.columns:
             if col not in st.session_state["csvw_columns"]:
@@ -141,7 +164,7 @@ def render_upload():
                     key=f"csvw_required_{col}",
                 )
 
-                with st.expander("Optionale Constraints"):
+                with st.expander("Regeln für Spaltenwerte"):
                     minimum = st.text_input(
                         "Minimum",
                         value=st.session_state["csvw_columns"][col]["minimum"],
@@ -177,3 +200,11 @@ def render_upload():
                     "null": null_values,
                 }
 
+    st.button(
+        "Weiter zur KI-Konfiguration",
+        on_click=set_step,
+        #args=(2,),
+        args=(3,),
+        disabled=len(step2_missing) > 0,
+        type="primary",
+    )
