@@ -56,12 +56,19 @@ def init_description_state():
 def render_description():
     init_description_state()
 
-    st.header("Schritt 4: Beschreibungs-Erstellung")
+    st.header("Schritt 4: Generierte Metadatenfelder")
 
     st.markdown(
-        "Datensatz-Beschreibung "
+        "Sie sehen KI-basierte Entwürfe für die **Datensatz-Beschreibung**, "
+        "**Keywords** und **Kategorien**. Bitte überprüfen Sie diese auf sachliche Richtigkeit und "
+        "Qualität und nehmen ggf. Änderungen vor."
+    )
+
+    st.markdown(
+        "**Datensatz-Beschreibung**"
         "<span style='color:red'>*</span>",
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
+        help="DCAT-Feld Datensatz-Beschreibung (dct:description), siehe DCAT-AP.de https://www.dcat-ap.de/def/dcatde/3.0/spec/#datensatz-beschreibung"
     )
     sync_state_to_widget("_description", "description")
     st.text_area(
@@ -73,7 +80,10 @@ def render_description():
         args=("_description", "description"),
     )
 
-    st.markdown("Schlagwörter")
+    st.markdown(
+        "**Keywords**",
+        help="DCAT-Feld für Keywords (Schlüsselwörter) (dcat:keyword), siehe https://www.dcat-ap.de/def/dcatde/3.0/spec/#datensatz-schlagwort"
+    )
     sync_state_to_widget("_keywords", "keywords")
     keywords = st_tags(
         label="",
@@ -85,7 +95,11 @@ def render_description():
     # st_tags liefert den aktuellen Wert direkt zurück.
     st.session_state["keywords"] = keywords or []
 
-    st.markdown("Themen")
+    st.markdown(
+        "**Kategorien**",
+        help="DCAT-Feld für Kategorien (dcat:theme), siehe https://www.dcat-ap.de/def/dcatde/3.0/spec/#datensatz-kategorie. Die Themenliste"
+             "entspricht der Open-Data-Kategoriensammlung der Europäischen Union (https://www.dcat-ap.de/def/dcatde/3.0/spec/#kv-data-theme)"
+    )
     sync_state_to_widget("_themes", "themes")
     st.multiselect(
         label="Themen",

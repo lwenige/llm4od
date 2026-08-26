@@ -65,7 +65,7 @@ st.sidebar.button(
 )
 
 st.sidebar.button(
-    "4 Generierte Felder",
+    "4 Generierte Metadatenfelder",
     on_click=set_step,
     args=(4,),
     disabled=not step3_complete(),

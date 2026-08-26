@@ -28,7 +28,7 @@ def load_places_from_rdf(query: str):
 
 def render_metadata():
 
-    st.header("Schritt 2: Metadaten zur DCAT-Erstellung")
+    st.header("Schritt 1: Metadaten zur DCAT-Erstellung")
     st.write("Bitte füllen Sie alle relevanten Metadenfelder aus. "
              "Pflichtfelder sind mit einem * markiert.")
     with st.container(border=True):
@@ -282,8 +282,8 @@ def render_metadata():
 
             st.markdown(
                 "\n\n"
-                "Bitte wählen Sie bei Bedarf einen geographischen Bereich aus der Karte aus, auf den "
-                "sich Ihre Daten beziehen. Selektieren Sie dafür das Rechteck (◼️) auf der Karte und zeichnen Sie den "
+                "Bitte markieren Sie bei Bedarf einen geographischen Bereich auf der Karte, auf den "
+                "sich Ihre Daten beziehen. Selektieren Sie dafür das Rechteck (◼️) und zeichnen Sie den "
                 "betroffenen Bereich ein.",
             )
             # -----------------------------------

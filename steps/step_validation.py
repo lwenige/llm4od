@@ -16,17 +16,16 @@ def reset_validation_state(error_message: str | None = None) -> None:
     """Setzt die Ergebnisse der Validierung zurück."""
     st.session_state["validation_report"] = None
     st.session_state["validation_error"] = error_message
+    st.session_state["shacl_error"] = error_message
+    st.session_state["fair_error"] = None
     st.session_state["fair_score"] = None
     st.session_state["step5_completed"] = False
 
 
-def run_validation() -> None:
+def prepare_validation_data() -> str | None:
     """
-    Erstellt die aktuellen Metadaten, erzeugt den Export und führt anschließend
-    FAIR- sowie SHACL-Prüfung aus.
-
-    Diese Funktion wird nicht automatisch beim Rendern von Schritt 5 ausgeführt.
-    Sie muss ausdrücklich durch einen Button-Callback aufgerufen werden.
+    Erstellt die aktuellen Metadaten und den Export als gemeinsame Grundlage
+    für FAIR- und SHACL-Prüfung.
     """
     create_dataset()
     update_dataset()
@@ -34,7 +33,7 @@ def run_validation() -> None:
         reset_validation_state(
             "Es wurde kein aktueller Datensatz zur Validierung gefunden."
         )
-        return
+        return None
 
     st.session_state["dataset"].add_description(st.session_state["description"])
 
@@ -52,7 +51,7 @@ def run_validation() -> None:
         reset_validation_state(
             "Es wurden keine Tabellendaten zur Validierung gefunden."
         )
-        return
+        return None
 
     try:
 
@@ -66,13 +65,13 @@ def run_validation() -> None:
             "Der aktuelle Datensatz konnte nicht aktualisiert oder "
             f"serialisiert werden: {exc}"
         )
-        return
+        return None
 
     if not rdf_turtle.strip():
         reset_validation_state(
             "Der aktuelle Datensatz enthält keine DCAT-Metadaten."
         )
-        return
+        return None
 
     st.session_state["rdf_turtle"] = rdf_turtle
 
@@ -86,6 +85,57 @@ def run_validation() -> None:
         reset_validation_state(
             f"Das ZIP-Archiv konnte nicht erstellt werden: {exc}"
         )
+        return None
+
+    return rdf_turtle
+
+
+def run_fair_validation(rdf_turtle: str | None = None) -> None:
+    """Führt ausschließlich die lokale FAIR-Readiness-Prüfung aus."""
+    rdf_turtle = rdf_turtle or prepare_validation_data()
+    if rdf_turtle is None:
+        return
+
+    st.session_state["fair_score"] = None
+    st.session_state["fair_error"] = None
+
+    try:
+        st.session_state["fair_score"] = calculate_fair_score(
+            rdf_turtle,
+            df=st.session_state.get("df"),
+            csvw_columns=st.session_state.get("csvw_columns"),
+        ).to_dict()
+    except Exception as exc:
+        st.session_state["fair_error"] = (
+            f"Der FAIR Readiness Score konnte nicht berechnet werden: {exc}"
+        )
+
+
+def run_shacl_validation(rdf_turtle: str | None = None) -> None:
+    """Führt ausschließlich die DCAT-AP.de-SHACL-Prüfung aus."""
+    rdf_turtle = rdf_turtle or prepare_validation_data()
+    if rdf_turtle is None:
+        return
+
+    st.session_state["validation_report"] = None
+    st.session_state["validation_error"] = None
+    st.session_state["shacl_error"] = None
+    st.session_state["step5_completed"] = False
+
+    try:
+        validation_report = validate_dcat_ap_de(rdf_turtle)
+        st.session_state["validation_report"] = validation_report
+        st.session_state["step5_completed"] = True
+    except ShaclValidationError as exc:
+        error_message = str(exc)
+        st.session_state["validation_error"] = error_message
+        st.session_state["shacl_error"] = error_message
+
+
+def run_validation() -> None:
+    """Bereitet die Metadaten vor und führt beide Prüfungen aus."""
+    rdf_turtle = prepare_validation_data()
+    if rdf_turtle is None:
         return
 
     st.session_state["validation_report"] = None
@@ -93,32 +143,10 @@ def run_validation() -> None:
     st.session_state["fair_score"] = None
     st.session_state["step5_completed"] = False
 
-    try:
-        # st.session_state["fair_score"] = calculate_fair_score(
-        #     rdf_turtle
-        # ).to_dict()
-        st.session_state["fair_score"] = calculate_fair_score(
-            rdf_turtle,
-            df=st.session_state.get("df"),
-            csvw_columns=st.session_state.get("csvw_columns"),
-        ).to_dict()
-    except Exception as exc:
-        st.session_state["validation_error"] = (
-            f"Der FAIR Readiness Score konnte nicht berechnet werden: {exc}"
-        )
-        return
-
-    try:
-        validation_report = validate_dcat_ap_de(rdf_turtle)
-
-        st.session_state["validation_report"] = validation_report
-        st.session_state["validation_error"] = None
-        st.session_state["step5_completed"] = True
-
-    except ShaclValidationError as exc:
-        st.session_state["validation_report"] = None
-        st.session_state["validation_error"] = str(exc)
-        st.session_state["step5_completed"] = False
+    st.session_state["shacl_error"] = None
+    st.session_state["fair_error"] = None
+    run_fair_validation(rdf_turtle)
+    run_shacl_validation(rdf_turtle)
 
 
 def render_report_entry(
@@ -310,19 +338,53 @@ def render_fair_score(fair_score: dict) -> None:
 
 
 def render_validation() -> None:
-    st.header("Schritt 5: Metadatenqualität prüfen")
+    st.header("Schritt 5: Metadatenqualität & Publikation")
 
     st.markdown(
-        "Die erzeugten DCAT-Metadaten wurden lokal auf FAIR Readiness "
-        "und zusätzlich über das ITB-Testbed auf SHACL-Konformität geprüft."
+        "Prüfen Sie die Metadaten auf FAIR Readiness und auf "
+        "DCAT-AP.de-SHACL-Konformität. Beide Prüfungen können gemeinsam "
+        "oder getrennt ausgeführt werden."
     )
 
-    # Keine automatische Validierung beim Öffnen von Schritt 5.
-    # Die Prüfung wurde bereits durch den Button in Schritt 4 gestartet.
     st.divider()
-    st.subheader("DCAT-AP.de SHACL-Prüfung")
 
-    validation_error = st.session_state.get(
+    st.subheader("Prüfungen ausführen")
+    st.caption(
+        "FAIR bewertet die Qualität und Nachnutzbarkeit. SHACL prüft die "
+        "formale Konformität mit DCAT-AP.de."
+    )
+
+    col_all, col_shacl, col_fair = st.columns(3)
+
+    run_all = col_all.button(
+        "Beide Prüfungen",
+        type="primary",
+        use_container_width=True,
+    )
+    run_shacl = col_shacl.button(
+        "Nur SHACL",
+        use_container_width=True,
+    )
+    run_fair = col_fair.button(
+        "Nur FAIR",
+        use_container_width=True,
+    )
+
+    if run_all or run_shacl or run_fair:
+        with st.spinner("Metadaten werden geprüft …"):
+            if run_all:
+                run_validation()
+            elif run_shacl:
+                run_shacl_validation()
+            else:
+                run_fair_validation()
+        st.rerun()
+
+    st.divider()
+    st.subheader("1. DCAT-AP.de-SHACL-Prüfung")
+    st.caption("Formale Validierung über das [ITB-Testbed](https://www.itb.ec.europa.eu/shacl/dcat-ap.de/upload)")
+
+    validation_error = st.session_state.get("shacl_error") or st.session_state.get(
         "validation_error"
     )
     validation_report = st.session_state.get(
@@ -338,24 +400,28 @@ def render_validation() -> None:
     elif not validation_error:
         st.info(
             "Es liegt noch kein Validierungsergebnis vor. "
-            "Starten Sie die Prüfung über den Button "
-            "„Metadaten prüfen“ in Schritt 4."
+            "Starten Sie oben die SHACL-Prüfung oder beide Prüfungen."
         )
 
-    if st.button(
-        "Validierung erneut ausführen",
-        type="secondary",
-    ):
-        with st.spinner("Metadaten werden geprüft …"):
-            run_validation()
-        st.rerun()
+    st.divider()
+    st.subheader("2. FAIR-Readiness-Prüfung")
+    st.caption("Lokale Bewertung von Auffindbarkeit und Nachnutzbarkeit")
 
     if fair_score:
         render_fair_score(fair_score)
+    elif st.session_state.get("fair_error"):
+        st.error(st.session_state["fair_error"])
+    else:
+        st.info(
+            "Es liegt noch kein FAIR-Ergebnis vor. "
+            "Starten Sie oben die FAIR-Prüfung oder beide Prüfungen."
+        )
 
     export_zip = st.session_state.get("export_zip")
 
     if export_zip:
+        st.divider()
+        st.subheader("Publikation (Export)")
         st.download_button(
             label="ZIP herunterladen",
             data=export_zip,

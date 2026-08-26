@@ -14,7 +14,7 @@ Berücksichtige dabei alle bereitgestellten Informationen, insbesondere vorhande
 
 
 DEFAULT_DESCRIPTION_PROMPT = """- Schreibe eine prägnante, sachliche und professionelle Beschreibung auf Deutsch.
-- Länge: 2–5 Sätze.
+- Länge: 10–15 Sätze.
 - Ergänze nur Informationen, die aus den Metadaten, Spaltennamen oder Beispieldaten plausibel ableitbar sind.
 - Keine Halluzinationen, erfundenen Zwecke, Institutionen, Zeiträume oder Inhalte.
 - Erwähne räumliche oder zeitliche Bezüge nur, wenn sie angegeben oder klar erkennbar sind.
@@ -83,12 +83,16 @@ def generate_description():
         themes=theme_map,
     )
 
-    result = generate_metadata_with_openrouter(
-        prompt=final_prompt,
-        model=llm_map[st.session_state["selected_llm"]],
-        api_key=st.secrets["OPENROUTER_API_KEY"],
-        temperature=st.session_state["temperature"],
-    )
+    with st.spinner(
+            "KI generiert Metadatenfelder",
+            show_time=True,
+    ):
+        result = generate_metadata_with_openrouter(
+            prompt=final_prompt,
+            model=llm_map[st.session_state["selected_llm"]],
+            api_key=st.secrets["OPENROUTER_API_KEY"],
+            temperature=st.session_state["temperature"],
+        )
 
     st.session_state["description"] = result.get("description", "")
     st.session_state["generated_themes"] = result.get("themes", [])
@@ -128,6 +132,13 @@ def render_ai_config():
 
     st.header("Schritt 3: KI-Konfiguration")
 
+    st.markdown(
+        "Hier können Festlegungen für den Einsatz des KI-Modells getroffen "
+        "werden. Im Hintergrund werden dann die Felder: **Datensatz-Beschreibung**, **Keywords** (Schlüsselwörter) "
+        "und **Kategorien** (Themen) erzeugt. Das Modell bekommt als Input die in Schritt 1 und 2 "
+        "festgelegten Metadaten sowie einen Ausschnitt der hochgeladenen CSV-Datei."
+    )
+
     left_column, right_column = st.columns(
         [1, 1],
         gap="large",
@@ -139,17 +150,48 @@ def render_ai_config():
     with left_column:
         sync_state_to_widget("_selected_llm", "selected_llm")
 
-        st.selectbox(
-            label="**KI-Modell**",
+        st.markdown(
+            "**KI-Modell**",
+            unsafe_allow_html=True,
             help=(
                 "Wählt das Sprachmodell aus, das die Metadaten generiert. "
                 "Je nach Modell können Qualität, Geschwindigkeit und Kosten "
-                "unterschiedlich ausfallen."
-            ),
+                "unterschiedlich ausfallen. Bei den GPT-Modellen handelt es sich "
+                "um proprietäre, kommerzielle Modelle der Firma OpenAI. Bei Mistral und "
+                "Llama um Open-Weight-Modelle."
+            )
+        )
+
+        st.selectbox(
+            label="KI-Modell",
+            label_visibility="collapsed",
             options=list(llm_map.keys()),
             key="_selected_llm",
             on_change=sync_widget_to_state,
             args=("_selected_llm", "selected_llm"),
+        )
+
+        st.markdown(
+            "**Temperatur**",
+            unsafe_allow_html=True,
+            help=(
+                "Steuert die Zufälligkeit der Ausgabe im Temperaturbereich 0.0 bis 0.5. Niedrige Werte erzeugen "
+                "gleichmäßigere und vorhersehbarere Ergebnisse. Höhere Werte "
+                "erhöhen die sprachliche Variation, es können aber ggf. mehr Fehler auftreten."
+            )
+        )
+
+        sync_state_to_widget("_temperature", "temperature")
+        st.slider(
+            label="Temperatur",
+            label_visibility="collapsed",
+            min_value=0.0,
+            max_value=0.5,
+            step=0.1,
+            format="%.1f",
+            key="_temperature",
+            on_change=sync_widget_to_state,
+            args=("_temperature", "temperature"),
         )
 
         render_prompt_field(
@@ -161,32 +203,16 @@ def render_ai_config():
             ),
             widget_key="_system_prompt",
             state_key="system_prompt",
-            height=560,
+            height=460,
         )
 
-        sync_state_to_widget("_temperature", "temperature")
 
-        st.slider(
-            label="**Temperatur**",
-            help=(
-                "Steuert die Zufälligkeit der Ausgabe. Niedrige Werte erzeugen "
-                "gleichmäßigere und vorhersehbarere Ergebnisse. Höhere Werte "
-                "erhöhen die sprachliche Variation."
-            ),
-            min_value=0.0,
-            max_value=0.5,
-            step=0.1,
-            format="%.1f",
-            key="_temperature",
-            on_change=sync_widget_to_state,
-            args=("_temperature", "temperature"),
-        )
 
     # Rechte Spalte:
     # Feldspezifische Vorgaben
     with right_column:
         render_prompt_field(
-            label="Vorgaben für DESCRIPTION",
+            label="Datensatz-Beschreibung (Prompt)",
             help_text=(
                 "Legt fest, wie die Beschreibung des Datensatzes erzeugt "
                 "werden soll. Hier können Sprache, Länge, Stil und inhaltliche "
@@ -198,19 +224,7 @@ def render_ai_config():
         )
 
         render_prompt_field(
-            label="Vorgaben für THEME",
-            help_text=(
-                "Legt fest, wie passende Themen aus der bereitgestellten "
-                "Themenliste ausgewählt werden. Die Themen müssen exakt aus "
-                "dieser Liste übernommen werden."
-            ),
-            widget_key="_theme_prompt",
-            state_key="theme_prompt",
-            height=200,
-        )
-
-        render_prompt_field(
-            label="Vorgaben für KEYWORD",
+            label="Keywords (Prompt)",
             help_text=(
                 "Legt fest, wie die Schlagwörter erzeugt werden. Hier können "
                 "Anzahl, Sprache, Form und ausgeschlossene Begriffe angepasst "
@@ -218,7 +232,19 @@ def render_ai_config():
             ),
             widget_key="_keyword_prompt",
             state_key="keyword_prompt",
-            height=200,
+            height=170,
+        )
+
+        render_prompt_field(
+            label="Kategorien (Prompt)",
+            help_text=(
+                "Legt fest, wie passende Themen aus der bereitgestellten "
+                "Themenliste ausgewählt werden. Die Themen müssen exakt aus "
+                "dieser Liste übernommen werden."
+            ),
+            widget_key="_theme_prompt",
+            state_key="theme_prompt",
+            height=170,
         )
 
     st.divider()
