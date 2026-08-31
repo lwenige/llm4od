@@ -1,6 +1,8 @@
+import re
 from datetime import date
 from uuid import uuid4
 
+import unicodedata
 from rdflib import Graph, Literal, Namespace, URIRef, XSD, BNode, FOAF, SKOS
 from rdflib.namespace import RDF, DCTERMS
 
@@ -20,6 +22,14 @@ LICENSE_SCHEME = URIRef("http://dcat-ap.de/def/licenses")
 VCARD = Namespace("http://www.w3.org/2006/vcard/ns#")
 CSV = URIRef("http://publications.europa.eu/resource/authority/file-type/CSV")
 GEO = Namespace("http://www.opengis.net/ont/geosparql#")
+
+def domain_label(name: str) -> str:
+    value = unicodedata.normalize("NFKD", name)
+    value = value.encode("ascii", "ignore").decode().lower()
+    value = re.sub(r"[^a-z0-9]+", "-", value).strip("-")
+
+    if not value or len(value) > 63:
+        raise ValueError(f"Cannot derive a valid domain label from {name!r}")
 
 
 class Dataset:
@@ -62,7 +72,15 @@ class Dataset:
 
         self.graph.add((self.dataset, DCAT.contactPoint, contact))
         self.graph.add((contact, RDF.type, VCARD.Kind))
-        self.graph.add((contact, VCARD.hasEmail, URIRef(f"mailto:info@{meta["publisher_name"]}.de")))
+        publisher = domain_label(meta["publisher_name"])
+        email = f"info@{publisher}.de"
+
+        self.graph.add((
+            contact,
+            VCARD.hasEmail,
+            URIRef(f"mailto:{email}")
+        ))
+        #self.graph.add((contact, VCARD.hasEmail, URIRef(f"mailto:info@{meta["publisher_name"]}.de")))
 
         place_keys = [
             place_key
