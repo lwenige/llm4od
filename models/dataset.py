@@ -31,6 +31,7 @@ def domain_label(name: str) -> str:
     if not value or len(value) > 63:
         raise ValueError(f"Cannot derive a valid domain label from {name!r}")
 
+    return value
 
 class Dataset:
     def __init__(self, meta: dict):
